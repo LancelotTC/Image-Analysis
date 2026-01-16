@@ -8,8 +8,7 @@ import cv2
 import numpy as np
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
@@ -35,7 +34,7 @@ HOG_BLOCK_STRIDE = 1
 HOG_BINS = 9
 
 # Evaluation settings.
-TEST_SIZE = 0.2
+CV_SPLITS = 5
 RANDOM_STATE = 42
 
 # Run control.
@@ -184,9 +183,10 @@ def load_features(path: Path) -> Dataset:
     )
 
 
-def can_stratify(y: np.ndarray) -> bool:
+def resolve_cv_splits(y: np.ndarray, desired_splits: int) -> int:
     counts = Counter(y)
-    return min(counts.values()) >= 2
+    min_count = min(counts.values())
+    return min(desired_splits, min_count)
 
 
 def build_classifiers() -> dict[str, object]:
@@ -199,7 +199,7 @@ def build_classifiers() -> dict[str, object]:
         "svc_rbf": make_pipeline(StandardScaler(), SVC(kernel="rbf", gamma="scale", C=3.0, random_state=RANDOM_STATE)),
         "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=5)),
         "random_forest": RandomForestClassifier(n_estimators=300, random_state=RANDOM_STATE),
-        "gradient_boosting": GradientBoostingClassifier(random_state=RANDOM_STATE),
+        # "gradient_boosting": GradientBoostingClassifier(random_state=RANDOM_STATE),
         "adaboost": AdaBoostClassifier(random_state=RANDOM_STATE),
         "gaussian_nb": GaussianNB(),
         "decision_tree": DecisionTreeClassifier(random_state=RANDOM_STATE),
@@ -207,36 +207,47 @@ def build_classifiers() -> dict[str, object]:
 
 
 def evaluate_classifiers(dataset: Dataset) -> list[dict]:
-    stratify = dataset.y if can_stratify(dataset.y) else None
-    X_train, X_test, y_train, y_test = train_test_split(
-        dataset.X,
-        dataset.y,
-        test_size=TEST_SIZE,
-        random_state=RANDOM_STATE,
-        stratify=stratify,
-    )
+    splits = resolve_cv_splits(dataset.y, CV_SPLITS)
+    if splits < 2:
+        raise ValueError("Not enough samples per class for cross-validation.")
+
+    cv = StratifiedKFold(n_splits=splits, shuffle=True, random_state=RANDOM_STATE)
+    scoring = {"accuracy": "accuracy", "macro_f1": "f1_macro"}
 
     results: list[dict] = []
     for name, model in build_classifiers().items():
-        model.fit(X_train, y_train)
-        preds = model.predict(X_test)
+        scores = cross_validate(model, dataset.X, dataset.y, cv=cv, scoring=scoring, n_jobs=None)
+        acc_mean = float(np.mean(scores["test_accuracy"]))
+        acc_std = float(np.std(scores["test_accuracy"]))
+        f1_mean = float(np.mean(scores["test_macro_f1"]))
+        f1_std = float(np.std(scores["test_macro_f1"]))
         results.append(
             {
                 "model": name,
-                "accuracy": float(accuracy_score(y_test, preds)),
-                "macro_f1": float(f1_score(y_test, preds, average="macro")),
+                "accuracy_mean": acc_mean,
+                "accuracy_std": acc_std,
+                "macro_f1_mean": f1_mean,
+                "macro_f1_std": f1_std,
+                "splits": splits,
             }
         )
 
-    results.sort(key=lambda item: (item["accuracy"], item["macro_f1"]), reverse=True)
+    results.sort(key=lambda item: (item["accuracy_mean"], item["macro_f1_mean"]), reverse=True)
     return results
 
 
 def save_results(results: list[dict], path: Path) -> None:
-    header = "model,accuracy,macro_f1"
+    header = "model,accuracy_mean,accuracy_std,macro_f1_mean,macro_f1_std,splits"
     lines = [header]
     for item in results:
-        lines.append(f"{item['model']},{item['accuracy']:.4f},{item['macro_f1']:.4f}")
+        lines.append(
+            f"{item['model']},"
+            f"{item['accuracy_mean']:.4f},"
+            f"{item['accuracy_std']:.4f},"
+            f"{item['macro_f1_mean']:.4f},"
+            f"{item['macro_f1_std']:.4f},"
+            f"{item['splits']}"
+        )
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -256,7 +267,12 @@ def main() -> None:
 
         results = evaluate_classifiers(dataset)
         for item in results:
-            print(f"{item['model']}: acc={item['accuracy']:.4f}, macro_f1={item['macro_f1']:.4f}")
+            print(
+                f"{item['model']}: "
+                f"acc={item['accuracy_mean']:.4f}±{item['accuracy_std']:.4f}, "
+                f"macro_f1={item['macro_f1_mean']:.4f}±{item['macro_f1_std']:.4f}, "
+                f"splits={item['splits']}"
+            )
         save_results(results, RESULTS_PATH)
         print(f"Saved classifier results to {RESULTS_PATH}")
 

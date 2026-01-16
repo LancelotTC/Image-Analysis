@@ -15,6 +15,10 @@ OUTPUT_SIZE = 64
 MIN_AREA = 50
 PADDING = 2
 MORPH_KERNEL = 0
+APPLY_SKELETON = True
+SKELETON_DILATE = True
+SKELETON_DILATE_KERNEL = 5
+SKELETON_DILATE_ITERATIONS = 1
 KEEP_ALL = True
 WRITE_MANIFEST = True
 
@@ -96,6 +100,32 @@ def resize_with_padding(binary: np.ndarray, size: int) -> np.ndarray:
     return canvas
 
 
+def skeletonize(binary: np.ndarray) -> np.ndarray:
+    if binary.dtype != np.uint8:
+        binary = binary.astype(np.uint8)
+    _, binary = cv2.threshold(binary, 0, 255, cv2.THRESH_BINARY)
+    skel = np.zeros_like(binary)
+    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+
+    work = binary.copy()
+    while True:
+        opened = cv2.morphologyEx(work, cv2.MORPH_OPEN, element)
+        temp = cv2.subtract(work, opened)
+        skel = cv2.bitwise_or(skel, temp)
+        work = cv2.erode(work, element)
+        if cv2.countNonZero(work) == 0:
+            break
+
+    if SKELETON_DILATE and SKELETON_DILATE_KERNEL > 0 and SKELETON_DILATE_ITERATIONS > 0:
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT,
+            (SKELETON_DILATE_KERNEL, SKELETON_DILATE_KERNEL),
+        )
+        skel = cv2.dilate(skel, kernel, iterations=SKELETON_DILATE_ITERATIONS)
+
+    return skel
+
+
 def iter_images(input_path: Path) -> list[Path]:
     if input_path.is_dir():
         return sorted([p for p in input_path.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES])
@@ -138,6 +168,8 @@ def process_image(
     targets = components if keep_all else [merge_components(components)]
     for idx, component in enumerate(targets, start=1):
         crop = crop_with_padding(binary, component, pad)
+        if APPLY_SKELETON:
+            crop = skeletonize(crop)
         resized = resize_with_padding(crop, size)
         output_name = f"{image_path.stem}_obj{idx}.png"
         output_path = output_dir / output_name
