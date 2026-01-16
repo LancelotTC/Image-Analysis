@@ -7,20 +7,22 @@ from utils import Image
 
 
 # Edit these defaults for your dataset.
-WORD_IMAGE_PATH = Path("word.jpeg")
+WORD_IMAGE_PATH = Path("word1.jpeg")
 FEATURES_FILE = FEATURES_PATH
 MIN_AREA = 50
 PADDING = 2
 MORPH_KERNEL = 0
-APPLY_SKELETON = False
-SKELETON_DILATE = False
-SKELETON_DILATE_KERNEL = 3
+INVERT = True
+APPLY_SKELETON = True
+SKELETON_DILATE = True
+SKELETON_DILATE_KERNEL = 5
 SKELETON_DILATE_ITERATIONS = 1
 
 
 def load_word_components(image_path: Path) -> list[Image]:
-    binary = Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE).binarize_auto()
-    binary.median_denoise(11)
+    binary = (
+        Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE).binarize(150).invert(True)
+    )
     components = binary.component_stats(min_area=MIN_AREA, connectivity=8)
     if not components:
         raise ValueError("No components found. Adjust MIN_AREA or MORPH_KERNEL.")
@@ -29,12 +31,14 @@ def load_word_components(image_path: Path) -> list[Image]:
     crops: list[Image] = []
     for component in components:
         crop = binary.copy().crop_with_padding(component.bbox, PADDING)
+
         if APPLY_SKELETON:
             crop.skeletonize(
                 dilate=SKELETON_DILATE,
                 dilate_kernel=SKELETON_DILATE_KERNEL,
                 dilate_iterations=SKELETON_DILATE_ITERATIONS,
             )
+
         crops.append(crop)
     return crops
 
@@ -52,7 +56,8 @@ def main() -> None:
     crops = load_word_components(WORD_IMAGE_PATH)
     features = []
     for crop in crops:
-        crop.resize_with_padding(config.image_size)
+        crop.resize_with_padding(config.image_size).binarize(150)
+        crop.show()
         features.append(extract_feature_vector(crop.data, config, hog))
 
     print(f"Word image: {WORD_IMAGE_PATH}")

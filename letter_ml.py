@@ -40,7 +40,7 @@ RANDOM_STATE = 42
 
 # Run control.
 RUN_FEATURE_EXTRACTION = True
-RUN_CLASSIFIERS = True
+RUN_CLASSIFIERS = False
 
 
 @dataclass(frozen=True)

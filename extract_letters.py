@@ -66,8 +66,18 @@ def process_image(
     keep_all: bool,
     manifest_rows: list[dict],
 ) -> None:
-    binary = Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE).binarize_auto()
-    binary.open_close(kernel_size=morph)
+    binary = (
+        Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE)
+        .binarize(150)
+        .invert(True)
+        .median_denoise()
+    )
+    # .binarize_for_components(
+    #     min_area=min_area,
+    #     connectivity=8,
+    # )
+
+    # binary.open_close(kernel_size=morph)
     components = []
     for obj in binary.component_stats(min_area=min_area, connectivity=8):
         x, y, w, h = obj.bbox
