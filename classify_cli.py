@@ -2,13 +2,8 @@ from pathlib import Path
 
 import cv2
 
-from letter_ml import (
-    FEATURES_PATH,
-    build_classifiers,
-    extract_feature_vector,
-    load_features,
-    make_hog_descriptor,
-)
+from config import FEATURES_PATH
+from letter_ml import build_classifiers, extract_feature_vector, load_features, make_hog_descriptor
 from utils import Image
 
 

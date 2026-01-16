@@ -16,23 +16,20 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.svm import LinearSVC, SVC
 from sklearn.tree import DecisionTreeClassifier
 
+from config import (
+    DATASET_DIR,
+    FEATURES_PATH,
+    HOG_BINS,
+    HOG_BLOCK_CELLS,
+    HOG_BLOCK_STRIDE,
+    HOG_CELL_SIZE,
+    IMAGE_SIZE,
+    IMAGE_SUFFIXES,
+    RESULTS_PATH,
+    USE_HOG,
+    USE_RAW_PIXELS,
+)
 from utils import Image
-
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
-
-# Edit these defaults for your dataset.
-DATASET_DIR = Path("letters_output")
-FEATURES_PATH = Path("letter_features.npz")
-RESULTS_PATH = Path("classifier_results.csv")
-
-# Feature extraction settings.
-IMAGE_SIZE = 64
-USE_HOG = True
-USE_RAW_PIXELS = False
-HOG_CELL_SIZE = 8
-HOG_BLOCK_CELLS = 2
-HOG_BLOCK_STRIDE = 1
-HOG_BINS = 9
 
 # Evaluation settings.
 CV_SPLITS = 5

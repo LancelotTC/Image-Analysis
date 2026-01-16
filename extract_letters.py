@@ -1,23 +1,26 @@
 import csv
-import cv2
-import shutil
-from utils import Image
 from pathlib import Path
+import shutil
 
+import cv2
 
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+from config import (
+    APPLY_SKELETON,
+    DATASET_DIR,
+    IMAGE_SIZE,
+    IMAGE_SUFFIXES,
+    MIN_AREA,
+    MORPH_KERNEL,
+    PADDING,
+    SKELETON_DILATE,
+    SKELETON_DILATE_ITERATIONS,
+    SKELETON_DILATE_KERNEL,
+)
+from utils import Image
 
 # Edit these defaults for your dataset.
 INPUT_PATH = Path("letters")
-OUTPUT_DIR = Path("letters_output")
-OUTPUT_SIZE = 64
-MIN_AREA = 50
-PADDING = 2
-MORPH_KERNEL = 0
-APPLY_SKELETON = True
-SKELETON_DILATE = True
-SKELETON_DILATE_KERNEL = 5
-SKELETON_DILATE_ITERATIONS = 1
+OUTPUT_DIR = DATASET_DIR
 KEEP_ALL = True
 WRITE_MANIFEST = True
 
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     extract_letters(
         input_path=INPUT_PATH,
         output_dir=OUTPUT_DIR,
-        size=OUTPUT_SIZE,
+        size=IMAGE_SIZE,
         min_area=MIN_AREA,
         pad=PADDING,
         morph=MORPH_KERNEL,

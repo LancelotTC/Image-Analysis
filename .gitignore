@@ -5,3 +5,4 @@ utils.py
 classifier_results.csv
 letter_features.npz
 image.jpeg
+/test
