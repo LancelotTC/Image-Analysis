@@ -4,5 +4,6 @@ __pycache__/
 utils.py
 classifier_results.csv
 letter_features.npz
-image.jpeg
+image.jpg
 /test
+/letters/temp

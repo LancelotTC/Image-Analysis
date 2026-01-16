@@ -17,7 +17,7 @@ from utils import Image
 
 
 # Edit these defaults for your dataset.
-WORD_IMAGE_PATH = Path("word1.jpeg")
+WORD_IMAGE_PATH = Path("word1.jpg")
 FEATURES_FILE = FEATURES_PATH
 INVERT = True
 

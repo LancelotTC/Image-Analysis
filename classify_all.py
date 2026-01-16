@@ -8,8 +8,8 @@ from utils import Image
 
 
 # Edit these defaults for your dataset.
-SAMPLE_IMAGE_PATH = Path("image.jpeg")
-SAMPLE_IMAGE_PATH = Path("test/5.jpeg")
+SAMPLE_IMAGE_PATH = Path("image.jpg")
+SAMPLE_IMAGE_PATH = Path("test/5.jpg")
 FEATURES_FILE = FEATURES_PATH
 
 

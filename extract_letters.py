@@ -1,11 +1,25 @@
 import csv
-from pathlib import Path
+import random
 import shutil
+from pathlib import Path
 
 import cv2
+import numpy as np
 
 from config import (
     APPLY_SKELETON,
+    AUGMENT_BLUR_PROB,
+    AUGMENT_COUNT,
+    AUGMENT_DILATE_KERNEL,
+    AUGMENT_DILATE_PROB,
+    AUGMENT_ERODE_KERNEL,
+    AUGMENT_ERODE_PROB,
+    AUGMENT_NOISE_AMOUNT,
+    AUGMENT_NOISE_PROB,
+    AUGMENT_ROTATE_DEG,
+    AUGMENT_SCALE_RANGE,
+    AUGMENT_SEED,
+    AUGMENT_TRANSLATE_PX,
     DATASET_DIR,
     IMAGE_SIZE,
     IMAGE_SUFFIXES,
@@ -40,6 +54,40 @@ def merge_components(components: list[dict]) -> dict:
     }
 
 
+def augment_image(image: np.ndarray, rng: random.Random, np_rng: np.random.Generator) -> np.ndarray:
+    h, w = image.shape[:2]
+    angle = rng.uniform(-AUGMENT_ROTATE_DEG, AUGMENT_ROTATE_DEG)
+    scale = rng.uniform(1.0 - AUGMENT_SCALE_RANGE, 1.0 + AUGMENT_SCALE_RANGE)
+    tx = rng.uniform(-AUGMENT_TRANSLATE_PX, AUGMENT_TRANSLATE_PX)
+    ty = rng.uniform(-AUGMENT_TRANSLATE_PX, AUGMENT_TRANSLATE_PX)
+
+    matrix = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), angle, scale)
+    matrix[0, 2] += tx
+    matrix[1, 2] += ty
+    warped = cv2.warpAffine(image, matrix, (w, h), flags=cv2.INTER_LINEAR, borderValue=0)
+
+    if AUGMENT_DILATE_PROB > 0 and rng.random() < AUGMENT_DILATE_PROB:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (AUGMENT_DILATE_KERNEL, AUGMENT_DILATE_KERNEL))
+        warped = cv2.dilate(warped, kernel, iterations=1)
+    elif AUGMENT_ERODE_PROB > 0 and rng.random() < AUGMENT_ERODE_PROB:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (AUGMENT_ERODE_KERNEL, AUGMENT_ERODE_KERNEL))
+        warped = cv2.erode(warped, kernel, iterations=1)
+
+    if AUGMENT_BLUR_PROB > 0 and rng.random() < AUGMENT_BLUR_PROB:
+        warped = cv2.GaussianBlur(warped, (3, 3), 0)
+
+    if AUGMENT_NOISE_PROB > 0 and rng.random() < AUGMENT_NOISE_PROB and AUGMENT_NOISE_AMOUNT > 0:
+        count = int(AUGMENT_NOISE_AMOUNT * h * w)
+        if count > 0:
+            ys = np_rng.integers(0, h, size=count)
+            xs = np_rng.integers(0, w, size=count)
+            values = np_rng.integers(0, 2, size=count)
+            warped[ys, xs] = np.where(values == 0, 0, 255)
+
+    _, warped = cv2.threshold(warped, 127, 255, cv2.THRESH_BINARY)
+    return warped
+
+
 def iter_images(input_path: Path) -> list[Path]:
     if input_path.is_dir():
         return sorted([p for p in input_path.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES])
@@ -68,6 +116,8 @@ def process_image(
     morph: int,
     keep_all: bool,
     manifest_rows: list[dict],
+    rng: random.Random,
+    np_rng: np.random.Generator,
 ) -> None:
     binary = (
         Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE)
@@ -115,6 +165,28 @@ def process_image(
             }
         )
 
+        if AUGMENT_COUNT <= 0:
+            continue
+
+        base = crop.data.copy()
+        for aug_idx in range(1, AUGMENT_COUNT + 1):
+            augmented = augment_image(base, rng, np_rng)
+            aug_name = f"{image_path.stem}_obj{idx}_aug{aug_idx}.png"
+            aug_path = output_dir / aug_name
+            cv2.imwrite(str(aug_path), augmented)
+            aug_rel = aug_path.relative_to(base_output_dir).as_posix()
+            manifest_rows.append(
+                {
+                    "source": image_path.name,
+                    "output": aug_rel,
+                    "x": component["x"],
+                    "y": component["y"],
+                    "w": component["w"],
+                    "h": component["h"],
+                    "area": component["area"],
+                }
+            )
+
 
 def extract_letters(
     input_path: Path,
@@ -129,6 +201,8 @@ def extract_letters(
     output_dir.mkdir(parents=True, exist_ok=True)
     empty_dir(output_dir)
 
+    rng = random.Random(AUGMENT_SEED)
+    np_rng = np.random.default_rng(AUGMENT_SEED)
     manifest_rows: list[dict] = []
     for image_path in iter_images(input_path):
         letter_dir = output_dir / image_path.stem
@@ -143,6 +217,8 @@ def extract_letters(
             morph=morph,
             keep_all=keep_all,
             manifest_rows=manifest_rows,
+            rng=rng,
+            np_rng=np_rng,
         )
 
     if write_manifest:
