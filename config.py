@@ -3,8 +3,8 @@ from pathlib import Path
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpg", ".bmp", ".tif", ".tiff"}
 
 # Dataset paths.
-DATASET_DIR = Path("letters_output")
-FEATURES_PATH = Path("letter_features.npz")
+DATASET_DIR = Path(r"C:\Users\Lanxe\Desktop\Master MINDS M1 (local)\Image Analysis\letters_output")
+FEATURES_PATH = Path(r"C:\Users\Lanxe\Desktop\Master MINDS M1 (local)\Image Analysis\letter_features.npz")
 RESULTS_PATH = Path("classifier_results.csv")
 
 # Feature extraction settings.
@@ -26,7 +26,7 @@ SKELETON_DILATE_KERNEL = 5
 SKELETON_DILATE_ITERATIONS = 1
 
 # Augmentation settings (applied during extraction).
-AUGMENT_COUNT = 0
+AUGMENT_COUNT = 5
 AUGMENT_SEED = 42
 AUGMENT_ROTATE_DEG = 6
 AUGMENT_TRANSLATE_PX = 2

@@ -36,7 +36,7 @@ CV_SPLITS = 5
 RANDOM_STATE = 42
 
 # Run control.
-RUN_FEATURE_EXTRACTION = True
+RUN_FEATURE_EXTRACTION = False
 RUN_CLASSIFIERS = True
 
 
@@ -185,14 +185,14 @@ def build_classifiers() -> dict[str, object]:
             StandardScaler(),
             LogisticRegression(max_iter=2000, n_jobs=None, random_state=RANDOM_STATE),
         ),
-        "linear_svc": make_pipeline(StandardScaler(), LinearSVC(max_iter=5000, random_state=RANDOM_STATE)),
-        "svc_rbf": make_pipeline(StandardScaler(), SVC(kernel="rbf", gamma="scale", C=3.0, random_state=RANDOM_STATE)),
+        # "linear_svc": make_pipeline(StandardScaler(), LinearSVC(max_iter=5000, random_state=RANDOM_STATE)),
+        # "svc_rbf": make_pipeline(StandardScaler(), SVC(kernel="rbf", gamma="scale", C=3.0, random_state=RANDOM_STATE)),
         "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=10)),
-        "random_forest": RandomForestClassifier(n_estimators=300, random_state=RANDOM_STATE),
+        # "random_forest": RandomForestClassifier(n_estimators=300, random_state=RANDOM_STATE),
         # "gradient_boosting": GradientBoostingClassifier(random_state=RANDOM_STATE),
-        "adaboost": AdaBoostClassifier(random_state=RANDOM_STATE),
-        "gaussian_nb": GaussianNB(),
-        "decision_tree": DecisionTreeClassifier(random_state=RANDOM_STATE),
+        # "adaboost": AdaBoostClassifier(random_state=RANDOM_STATE),
+        # "gaussian_nb": GaussianNB(),
+        # "decision_tree": DecisionTreeClassifier(random_state=RANDOM_STATE),
     }
 
 

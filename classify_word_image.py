@@ -19,14 +19,13 @@ from utils import Image
 # Edit these defaults for your dataset.
 WORD_IMAGE_PATH = Path("word1.jpg")
 FEATURES_FILE = FEATURES_PATH
-INVERT = True
 
 
 def load_word_components(image_path: Path) -> list[Image]:
     binary = (
         Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE)
         .binarize(150)
-        .invert(INVERT)
+        .invert()
         .open_close(kernel_size=MORPH_KERNEL)
     )
     components = binary.component_stats(min_area=MIN_AREA, connectivity=8)
