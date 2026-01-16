@@ -1,4 +1,3 @@
-import argparse
 import csv
 from pathlib import Path
 
@@ -7,6 +6,16 @@ import numpy as np
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+
+# Edit these defaults for your dataset.
+INPUT_PATH = Path("letters")
+OUTPUT_DIR = Path("letters_output")
+OUTPUT_SIZE = 64
+MIN_AREA = 50
+PADDING = 2
+MORPH_KERNEL = 0
+KEEP_ALL = False
+WRITE_MANIFEST = True
 
 
 def to_binary(gray: np.ndarray) -> np.ndarray:
@@ -67,7 +76,7 @@ def resize_with_padding(binary: np.ndarray, size: int) -> np.ndarray:
     canvas = np.zeros((size, size), dtype=np.uint8)
     x0 = (size - new_w) // 2
     y0 = (size - new_h) // 2
-    canvas[y0:y0 + new_h, x0:x0 + new_w] = resized
+    canvas[y0 : y0 + new_h, x0 : x0 + new_w] = resized
     return canvas
 
 
@@ -119,46 +128,16 @@ def process_image(
         )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Extract letter components from binarized images and normalize size."
-    )
-    parser.add_argument("input", help="Input image file or directory")
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="Output directory (default: <input>/output or <input_dir>/output)",
-    )
-    parser.add_argument("--size", type=int, default=64, help="Output square size in pixels")
-    parser.add_argument("--min-area", type=int, default=50, help="Minimum component area")
-    parser.add_argument("--pad", type=int, default=2, help="Padding around component bbox")
-    parser.add_argument(
-        "--morph",
-        type=int,
-        default=0,
-        help="Morphology kernel size (0 to disable)",
-    )
-    parser.add_argument(
-        "--keep-all",
-        action="store_true",
-        help="Save all components (default: largest only)",
-    )
-    parser.add_argument(
-        "--no-manifest",
-        action="store_true",
-        help="Do not write manifest.csv",
-    )
-    return parser
-
-
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
-    input_path = Path(args.input)
-    output_dir = Path(args.output) if args.output else (
-        input_path / "output" if input_path.is_dir() else input_path.parent / "output"
-    )
+def extract_letters(
+    input_path: Path,
+    output_dir: Path,
+    size: int,
+    min_area: int,
+    pad: int,
+    morph: int,
+    keep_all: bool,
+    write_manifest: bool,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_rows: list[dict] = []
@@ -166,23 +145,30 @@ def main() -> None:
         process_image(
             image_path=image_path,
             output_dir=output_dir,
-            size=args.size,
-            min_area=args.min_area,
-            pad=args.pad,
-            morph=args.morph,
-            keep_all=args.keep_all,
+            size=size,
+            min_area=min_area,
+            pad=pad,
+            morph=morph,
+            keep_all=keep_all,
             manifest_rows=manifest_rows,
         )
 
-    if not args.no_manifest:
+    if write_manifest:
         manifest_path = output_dir / "manifest.csv"
         with manifest_path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(
-                handle, fieldnames=["source", "output", "x", "y", "w", "h", "area"]
-            )
+            writer = csv.DictWriter(handle, fieldnames=["source", "output", "x", "y", "w", "h", "area"])
             writer.writeheader()
             writer.writerows(manifest_rows)
 
 
 if __name__ == "__main__":
-    main()
+    extract_letters(
+        input_path=INPUT_PATH,
+        output_dir=OUTPUT_DIR,
+        size=OUTPUT_SIZE,
+        min_area=MIN_AREA,
+        pad=PADDING,
+        morph=MORPH_KERNEL,
+        keep_all=KEEP_ALL,
+        write_manifest=WRITE_MANIFEST,
+    )
