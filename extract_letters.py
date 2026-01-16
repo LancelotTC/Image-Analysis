@@ -58,6 +58,21 @@ def find_components(binary: np.ndarray, min_area: int) -> list[dict]:
     return components
 
 
+def merge_components(components: list[dict]) -> dict:
+    xs = [c["x"] for c in components]
+    ys = [c["y"] for c in components]
+    x2s = [c["x"] + c["w"] for c in components]
+    y2s = [c["y"] + c["h"] for c in components]
+    return {
+        "label": 0,
+        "x": min(xs),
+        "y": min(ys),
+        "w": max(x2s) - min(xs),
+        "h": max(y2s) - min(ys),
+        "area": sum(c["area"] for c in components),
+    }
+
+
 def crop_with_padding(binary: np.ndarray, bbox: dict, pad: int) -> np.ndarray:
     x = max(0, bbox["x"] - pad)
     y = max(0, bbox["y"] - pad)
@@ -120,7 +135,7 @@ def process_image(
     if not components:
         return
 
-    targets = components if keep_all else [components[0]]
+    targets = components if keep_all else [merge_components(components)]
     for idx, component in enumerate(targets, start=1):
         crop = crop_with_padding(binary, component, pad)
         resized = resize_with_padding(crop, size)
