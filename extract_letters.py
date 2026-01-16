@@ -1,4 +1,5 @@
 import csv
+import shutil
 from pathlib import Path
 
 import cv2
@@ -14,7 +15,7 @@ OUTPUT_SIZE = 64
 MIN_AREA = 50
 PADDING = 2
 MORPH_KERNEL = 0
-KEEP_ALL = False
+KEEP_ALL = True
 WRITE_MANIFEST = True
 
 
@@ -88,6 +89,16 @@ def iter_images(input_path: Path) -> list[Path]:
     raise FileNotFoundError(f"Input path not found: {input_path}")
 
 
+def empty_dir(path: Path) -> None:
+    if not path.exists():
+        return
+    for entry in path.iterdir():
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+
 def process_image(
     image_path: Path,
     output_dir: Path,
@@ -139,6 +150,7 @@ def extract_letters(
     write_manifest: bool,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    empty_dir(output_dir)
 
     manifest_rows: list[dict] = []
     for image_path in iter_images(input_path):
