@@ -102,6 +102,7 @@ def empty_dir(path: Path) -> None:
 def process_image(
     image_path: Path,
     output_dir: Path,
+    base_output_dir: Path,
     size: int,
     min_area: int,
     pad: int,
@@ -126,10 +127,11 @@ def process_image(
         output_name = f"{image_path.stem}_obj{idx}.png"
         output_path = output_dir / output_name
         cv2.imwrite(str(output_path), resized)
+        output_rel = output_path.relative_to(base_output_dir).as_posix()
         manifest_rows.append(
             {
                 "source": image_path.name,
-                "output": output_name,
+                "output": output_rel,
                 "x": component["x"],
                 "y": component["y"],
                 "w": component["w"],
@@ -154,9 +156,12 @@ def extract_letters(
 
     manifest_rows: list[dict] = []
     for image_path in iter_images(input_path):
+        letter_dir = output_dir / image_path.stem
+        letter_dir.mkdir(parents=True, exist_ok=True)
         process_image(
             image_path=image_path,
-            output_dir=output_dir,
+            output_dir=letter_dir,
+            base_output_dir=output_dir,
             size=size,
             min_area=min_area,
             pad=pad,
