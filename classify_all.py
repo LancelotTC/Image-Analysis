@@ -5,11 +5,11 @@ import cv2
 from letter_ml import (
     FEATURES_PATH,
     build_classifiers,
-    ensure_size,
     extract_feature_vector,
     load_features,
     make_hog_descriptor,
 )
+from utils import Image
 
 
 # Edit these defaults for your dataset.
@@ -26,13 +26,10 @@ def main() -> None:
     dataset = load_features(FEATURES_FILE)
     config = dataset.config
 
-    image = cv2.imread(str(SAMPLE_IMAGE_PATH), cv2.IMREAD_GRAYSCALE)
-    if image is None:
-        raise ValueError(f"Failed to read image: {SAMPLE_IMAGE_PATH}")
-
-    image = ensure_size(image, config.image_size)
+    image = Image(str(SAMPLE_IMAGE_PATH), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE)
+    image.resize(width=config.image_size, height=config.image_size)
     hog = make_hog_descriptor(config) if config.use_hog else None
-    features = extract_feature_vector(image, config, hog).reshape(1, -1)
+    features = extract_feature_vector(image.data, config, hog).reshape(1, -1)
 
     print(f"Sample image: {SAMPLE_IMAGE_PATH}")
     print("Predictions:")

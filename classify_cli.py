@@ -5,11 +5,11 @@ import cv2
 from letter_ml import (
     FEATURES_PATH,
     build_classifiers,
-    ensure_size,
     extract_feature_vector,
     load_features,
     make_hog_descriptor,
 )
+from utils import Image
 
 
 def prompt_classifier(classifiers: dict[str, object]) -> str | None:
@@ -66,14 +66,11 @@ def classify_image() -> None:
     model = classifiers[classifier_name]
     model.fit(dataset.X, dataset.y)
 
-    image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
-    if image is None:
-        raise ValueError(f"Failed to read image: {image_path}")
-
     config = dataset.config
-    image = ensure_size(image, config.image_size)
+    image = Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE)
+    image.resize(width=config.image_size, height=config.image_size)
     hog = make_hog_descriptor(config) if config.use_hog else None
-    features = extract_feature_vector(image, config, hog).reshape(1, -1)
+    features = extract_feature_vector(image.data, config, hog).reshape(1, -1)
 
     pred = model.predict(features)
     label = dataset.label_encoder.inverse_transform(pred)[0]

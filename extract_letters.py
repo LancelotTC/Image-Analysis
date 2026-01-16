@@ -1,9 +1,8 @@
 import csv
-import shutil
-from pathlib import Path
-
 import cv2
-import numpy as np
+import shutil
+from utils import Image
+from pathlib import Path
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
@@ -23,45 +22,6 @@ KEEP_ALL = True
 WRITE_MANIFEST = True
 
 
-def to_binary(gray: np.ndarray) -> np.ndarray:
-    if gray.dtype != np.uint8:
-        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
-    unique = np.unique(gray)
-    if unique.size > 2 or not set(unique.tolist()).issubset({0, 255}):
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    else:
-        binary = gray.copy()
-
-    white = np.count_nonzero(binary == 255)
-    black = np.count_nonzero(binary == 0)
-    if white > black:
-        binary = cv2.bitwise_not(binary)
-
-    return binary
-
-
-def apply_morph(binary: np.ndarray, kernel_size: int) -> np.ndarray:
-    if kernel_size <= 0:
-        return binary
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-    opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
-    return closed
-
-
-def find_components(binary: np.ndarray, min_area: int) -> list[dict]:
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
-    components = []
-    for label in range(1, num_labels):
-        x, y, w, h, area = stats[label].tolist()
-        if area < min_area:
-            continue
-        components.append({"label": label, "x": x, "y": y, "w": w, "h": h, "area": area})
-    components.sort(key=lambda c: c["area"], reverse=True)
-    return components
-
-
 def merge_components(components: list[dict]) -> dict:
     xs = [c["x"] for c in components]
     ys = [c["y"] for c in components]
@@ -75,55 +35,6 @@ def merge_components(components: list[dict]) -> dict:
         "h": max(y2s) - min(ys),
         "area": sum(c["area"] for c in components),
     }
-
-
-def crop_with_padding(binary: np.ndarray, bbox: dict, pad: int) -> np.ndarray:
-    x = max(0, bbox["x"] - pad)
-    y = max(0, bbox["y"] - pad)
-    x2 = min(binary.shape[1], bbox["x"] + bbox["w"] + pad)
-    y2 = min(binary.shape[0], bbox["y"] + bbox["h"] + pad)
-    return binary[y:y2, x:x2]
-
-
-def resize_with_padding(binary: np.ndarray, size: int) -> np.ndarray:
-    h, w = binary.shape[:2]
-    if h == 0 or w == 0:
-        return np.zeros((size, size), dtype=np.uint8)
-    scale = min(size / w, size / h)
-    new_w = max(1, int(round(w * scale)))
-    new_h = max(1, int(round(h * scale)))
-    resized = cv2.resize(binary, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    canvas = np.zeros((size, size), dtype=np.uint8)
-    x0 = (size - new_w) // 2
-    y0 = (size - new_h) // 2
-    canvas[y0 : y0 + new_h, x0 : x0 + new_w] = resized
-    return canvas
-
-
-def skeletonize(binary: np.ndarray) -> np.ndarray:
-    if binary.dtype != np.uint8:
-        binary = binary.astype(np.uint8)
-    _, binary = cv2.threshold(binary, 0, 255, cv2.THRESH_BINARY)
-    skel = np.zeros_like(binary)
-    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
-
-    work = binary.copy()
-    while True:
-        opened = cv2.morphologyEx(work, cv2.MORPH_OPEN, element)
-        temp = cv2.subtract(work, opened)
-        skel = cv2.bitwise_or(skel, temp)
-        work = cv2.erode(work, element)
-        if cv2.countNonZero(work) == 0:
-            break
-
-    if SKELETON_DILATE and SKELETON_DILATE_KERNEL > 0 and SKELETON_DILATE_ITERATIONS > 0:
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT,
-            (SKELETON_DILATE_KERNEL, SKELETON_DILATE_KERNEL),
-        )
-        skel = cv2.dilate(skel, kernel, iterations=SKELETON_DILATE_ITERATIONS)
-
-    return skel
 
 
 def iter_images(input_path: Path) -> list[Path]:
@@ -155,25 +66,29 @@ def process_image(
     keep_all: bool,
     manifest_rows: list[dict],
 ) -> None:
-    image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
-    if image is None:
-        raise ValueError(f"Failed to read image: {image_path}")
-
-    binary = to_binary(image)
-    binary = apply_morph(binary, morph)
-    components = find_components(binary, min_area)
+    binary = Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE).binarize_auto()
+    binary.open_close(kernel_size=morph)
+    components = []
+    for obj in binary.component_stats(min_area=min_area, connectivity=8):
+        x, y, w, h = obj.bbox
+        components.append({"x": x, "y": y, "w": w, "h": h, "area": obj.area})
+    components.sort(key=lambda c: c["area"], reverse=True)
     if not components:
         return
 
     targets = components if keep_all else [merge_components(components)]
     for idx, component in enumerate(targets, start=1):
-        crop = crop_with_padding(binary, component, pad)
+        crop = binary.copy().crop_with_padding((component["x"], component["y"], component["w"], component["h"]), pad)
         if APPLY_SKELETON:
-            crop = skeletonize(crop)
-        resized = resize_with_padding(crop, size)
+            crop.skeletonize(
+                dilate=SKELETON_DILATE,
+                dilate_kernel=SKELETON_DILATE_KERNEL,
+                dilate_iterations=SKELETON_DILATE_ITERATIONS,
+            )
+        crop.resize_with_padding(size)
         output_name = f"{image_path.stem}_obj{idx}.png"
         output_path = output_dir / output_name
-        cv2.imwrite(str(output_path), resized)
+        cv2.imwrite(str(output_path), crop.data)
         output_rel = output_path.relative_to(base_output_dir).as_posix()
         manifest_rows.append(
             {

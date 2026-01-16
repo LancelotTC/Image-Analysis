@@ -16,6 +16,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.svm import LinearSVC, SVC
 from sklearn.tree import DecisionTreeClassifier
 
+from utils import Image
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
@@ -100,12 +101,6 @@ def make_hog_descriptor(config: FeatureConfig) -> cv2.HOGDescriptor:
     return cv2.HOGDescriptor(win_size, block, stride, cell, config.hog_bins)
 
 
-def ensure_size(image: np.ndarray, size: int) -> np.ndarray:
-    if image.shape[0] == size and image.shape[1] == size:
-        return image
-    return cv2.resize(image, (size, size), interpolation=cv2.INTER_AREA)
-
-
 def extract_feature_vector(image: np.ndarray, config: FeatureConfig, hog: cv2.HOGDescriptor | None) -> np.ndarray:
     features = []
     if config.use_hog and hog is not None:
@@ -128,11 +123,9 @@ def extract_features_dataset(root: Path, config: FeatureConfig | None = None) ->
     hog = make_hog_descriptor(config) if config.use_hog else None
     features: list[np.ndarray] = []
     for image_path in image_paths:
-        image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
-        if image is None:
-            raise ValueError(f"Failed to read image: {image_path}")
-        image = ensure_size(image, config.image_size)
-        features.append(extract_feature_vector(image, config, hog))
+        image = Image(str(image_path), color_order="bgr", load_mode=cv2.IMREAD_GRAYSCALE)
+        image.resize(width=config.image_size, height=config.image_size)
+        features.append(extract_feature_vector(image.data, config, hog))
 
     X = np.vstack(features)
     label_encoder = LabelEncoder()
@@ -269,8 +262,8 @@ def main() -> None:
         for item in results:
             print(
                 f"{item['model']}: "
-                f"acc={item['accuracy_mean']:.4f}±{item['accuracy_std']:.4f}, "
-                f"macro_f1={item['macro_f1_mean']:.4f}±{item['macro_f1_std']:.4f}, "
+                f"acc={item['accuracy_mean']:.4f}+/-{item['accuracy_std']:.4f}, "
+                f"macro_f1={item['macro_f1_mean']:.4f}+/-{item['macro_f1_std']:.4f}, "
                 f"splits={item['splits']}"
             )
         save_results(results, RESULTS_PATH)
